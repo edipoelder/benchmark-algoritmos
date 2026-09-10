@@ -67,3 +67,9 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+.DS_Store
+.idea/benchmark-algoritmos.iml
+.idea/editor.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
