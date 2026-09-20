@@ -33,7 +33,7 @@ library(stringr)
 
 # Introdução
 
-Este documento apresenta uma análise comparativa de **oito algoritmos de busca** aplicados a um `std::vector<int>` ordenado. O objetivo é medir, de forma padronizada, o tempo de execução médio (em nanossegundos) de cada algoritmo em função do tamanho do vetor de busca.
+Este documento apresenta uma análise comparativa de oito algoritmos de busca aplicados a um `std::vector<int>` ordenado. O objetivo é medir, de forma padronizada, o tempo de execução médio (em nanossegundos) de cada algoritmo em função do tamanho do vetor de busca.
 
 ## Os algoritmos avaliados
 
@@ -56,9 +56,9 @@ g++ -std=c++17 -O2 benchmark.cpp -o bench
 Em todos os testes:
   
 - O vetor `vec` foi criado com tamanho `END_SIZE` preenchido com  valor `1`.
-- O `target` buscado é `0`, que **não existe** no vetor, forçando o **pior caso** de cada algoritmo — todos percorrem/exploram o vetor até concluir que o elemento não está presente.
+- O `target` buscado é `0`, inexistente no vetor, forçando o pior caso de cada algoritmo — todos percorrem/exploram o vetor até concluir que o elemento não está presente.
 - Os tamanhos de vetor variam de `0` a `500000`, em passos de `10000`. Contudo, a função de busca linear recursiva, com os parâmetros de compilação sem otimização, tendem a estouram a pilha. Neste caso, recomendamos diminuir o tamanho do etor e o número de passos.
-- Cada medição foi repetida 10 (`TRIALS`) vezes, e calculamos a **média** dos tempos obtidos.
+- Cada medição foi repetida 10 (`TRIALS`) vezes, e calculamos a média dos tempos obtidos.
 
 # A função de benchmark
 
@@ -177,7 +177,7 @@ plotar_algoritmo("Busca Linear Alternativa Iterativa", "seagreen")
 
 ## Busca Linear Alternativa Recursiva
 
-Versão recursiva do *jump search* introduzimos a **condição de parada** `if (begin >= end) return false;` na primeira linha.
+Versão recursiva do *jump search* introduzimos a condição de parada `if (begin >= end) return false;` na primeira linha.
 
 ```cpp
 bool busca_linear_alternativa_recursiva_salto(const std::vector<int> &vec,
@@ -222,7 +222,7 @@ bool busca_binaria_iterativa(const std::vector<int> &vec, int begin, int end, in
 plotar_algoritmo("Busca Binaria Iterativa", "navy")
 ```
 
-Note a curva praticamente **plana**: o tempo não cresce de forma linear.
+Note a curva praticamente plana: o tempo não cresce de forma linear.
 
 ## Busca Binária Recursiva
 
@@ -246,7 +246,7 @@ Praticamente indistinguível da iterativa em tempo — o *overhead* de empilhame
 
 ## Busca Ternária Iterativa
 
-Divide o vetor em três partes. Apesar de reduzir o intervalo por um fator de 3 (em vez de 2), faz **duas comparações por iteração** (`terco_1` e `terco_2`). O número de iterações é menor, mas o custo comparação em C++ anula os ganhos de tempo que seriam obtidos com menos iterações.
+Divide o vetor em três partes. Apesar de reduzir o intervalo por um fator de 3 (em vez de 2), faz duas comparações por iteração (`terco_1` e `terco_2`). O número de iterações é menor, mas o custo comparação em C++ anula os ganhos de tempo que seriam obtidos com menos iterações.
 
 ```cpp
 bool busca_ternaria_iterativa(const std::vector<int>& vec, int begin, int end, int target) {
