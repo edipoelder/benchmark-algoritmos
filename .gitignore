@@ -73,3 +73,5 @@ Testing/
 .idea/misc.xml
 .idea/modules.xml
 .idea/vcs.xml
+.Rproj.user
+/bench.dSYM
