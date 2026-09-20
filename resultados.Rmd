@@ -50,7 +50,7 @@ Este documento apresenta uma análise comparativa de oito algoritmos de busca ap
 O programa foi compilado com os seguintes parâmetros:
 
 ```bash
-g++ -std=c++17 -O2 benchmark.cpp -o bench 
+g++ -std=c++17 -O2 benchmark.cpp -o bench
 ```
 
 Em todos os testes:
