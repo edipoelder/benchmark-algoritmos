@@ -1,0 +1,396 @@
+---
+title: "Benchmark de Algoritmos de Ordenação"
+author: "Édipo Elder Fernandes de Melo"
+date: "04/10/2026"
+papersize: "a4"
+lang: pt-BR
+output: 
+  bookdown::pdf_document2:
+    number_sections: true
+    toc: false
+csl: "abnt.csl"
+editor_options: 
+  chunk_output_type: console
+fig_width: 9
+fig_height: 5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center"
+)
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(knitr)
+library(stringr)
+```
+
+# Introdução
+
+Este relatório apresenta uma análise comparativa de cinco algoritmos de ordenação aplicados a uma estrutura de dados em C++ (`std::vector<int>`). O objetivo é medir, de forma padronizada, o tempo de execução médio (em milissegundos) de cada algoritmo em função do tamanho do vetor, considerando três cenários distintos: melhor caso, pior caso e caso médio.
+
+O melhor caso é quando o vetor já está ordenado. O pior caso é quando o vetor está ordenado de forma decrescente. Para testar o caso médio, optamos em criar um vetor com valores aleatórios. Neste último caso de cenário, é possível que o vetor tenha valores repetidos.
+
+## Os algoritmos avaliados
+
+A seguir, resumiremos as características de cada algoritmo testado:
+
+**Insertion Sort.** Percorre o vetor da esquerda para a direita, inserindo cada elemento na posição correta dentro da parte já ordenada. É eficiente para vetores pequenos ou quase ordenados, mas quadrático no pior caso.
+
+**Selection Sort.** A cada iteração, seleciona o menor elemento da parte não ordenada e o coloca na posição correta. Realiza sempre o mesmo número de comparações, independentemente da ordem inicial do vetor.
+
+**Bubble Sort.** Compara pares adjacentes e troca-os se estiverem fora de ordem, repetindo o processo até que nenhuma troca seja necessária. Possui uma otimização que interrompe a execução precocemente se o vetor já estiver ordenado.
+
+**Quick Sort.** Escolhe um pivô (aleatório, neste experimento), particiona o vetor em torno dele e ordena recursivamente as subpartes. É um dos algoritmos mais eficientes na prática, com complexidade média `O(n log n)`.
+
+**Merge Sort.** Divide o vetor recursivamente pela metade, ordena cada metade e depois as intercala. Garante complexidade `O(n log n)` em todos os casos, mas utiliza memória auxiliar.
+
+A tabela a seguir resume a complexidade dos algoritmos no melhor, pior e caso médio:
+
+```{r tabela-complexidades, echo=FALSE, message=FALSE}
+library(knitr)
+
+tabela_complexidades <- data.frame(
+  Algoritmo   = c("Insertion Sort", "Selection Sort", "Bubble Sort",
+                  "Quick Sort", "Merge Sort"),
+  Melhor      = c("O(n)", "O(n²)", "O(n)", "O(n log n)", "O(n log n)"),
+  Médio       = c("O(n²)", "O(n²)", "O(n²)", "O(n log n)", "O(n log n)"),
+  Pior        = c("O(n²)", "O(n²)", "O(n²)", "O(n²)", "O(n log n)"),
+  Estável     = c("Sim", "Não", "Sim", "Não", "Sim"),
+  check.names = FALSE
+)
+
+kable(
+  tabela_complexidades,
+  caption = "Complexidade dos algoritmos de ordenação avaliados",
+  col.names = c("Algoritmo", "Melhor", "Médio", "Pior",
+                "Estável?"),
+  align = c("l", "c", "c", "c", "c")
+)
+```
+
+## Cenário do experimento
+
+O programa foi executado num processador Apple M4, compilado com Apple clang versão 21.0.0 (clang-2100.3.34.2) e os seguintes parâmetros:
+
+```bash
+g++ -std=c++17 -O2 benchmark_sort.cpp -o bench_sort
+```
+
+Em todos os testes:
+
+- Foram criados três vetores com tamanho `VECTOR_SIZE` (15000), utilizados de forma padrão nos testes, sendo preenchidos de formas distintas:
+  - **Melhor caso:** vetor já ordenado (`melhor_caso[i] = i`).
+  - **Pior caso:** vetor em ordem inversa (`pior_caso[VECTOR_SIZE - i - 1] = i`).
+  - **Caso médio:** vetor aleatório (`rand() % VECTOR_SIZE`).
+- Os tamanhos de vetor testados variam de `1000` a `15000`, em passos de `1000`.
+- Cada medição foi repetida 3 vezes (`TRIALS`), e calculamos a média dos tempos obtidos.
+- Para evitar que o algoritmo receba um vetor já ordenado nos cenários de testes do pior caso e caso médio, a cada nova execução do algoritmo foi criada uma cópia do vetor padrão.
+
+# A função de benchmark
+
+A fim de evitar repetição de código para cada algoritmo implementado, padronizamos a execucão dos testes com um função genérica:
+
+```cpp
+typedef void (*algoritmo_ordenacao)(vector<int>& vetor, int end);
+
+inline long benchmark(algoritmo_ordenacao algoritmo, vector<int> &vetor, int end) {
+   ...
+}
+```
+
+A implementação dos algoritmos foi feita:
+
+1. **Com a mesma assinatura de parâmetros.** Todas as funções recebem `(vetor, end)` e retornam `void`. O ponteiro de função `algoritmo_ordenacao` permite chamá-las polimorficamente.
+
+2. **Medição isolada.** O cronômetro só envolve a chamada do algoritmo em si. As instruções para criação da cópia do vetor padrão não são computadas no teste.
+
+3. **Cópia do vetor a cada teste.** Isso evita que o algoritmo receba um vetor já ordenado na execução seguinte.
+
+O `main` cria os três vetores de teste e, para cada função registrada na tabela de `funcoes`, computa a média de tempo de 3 repetições para diferentes tamanhos, gerando um arquivo CSV diretamente utilizável pelo R. Optamos por fazer uma média de 3 execuções uma vez que os algoritmos Bubble Sort e Selection sort levam de 25 a quase 200 segundos de execução.
+
+```{r load, echo=FALSE}
+tempos <- read.csv("tempos_sort.csv", check.names = FALSE)
+
+# Converte colunas Tamanho_X em linhas, renomeia os casos
+# e converte o tempo de nanossegundos para milissegundos.
+tempos_longo <- tempos |>
+  pivot_longer(
+    cols      = starts_with("Tamanho_"),
+    names_to  = "Tamanho",
+    values_to = "Tempo_ns"
+  ) |>
+  mutate(
+    Tamanho = as.integer(str_remove(Tamanho, "Tamanho_")),
+    Caso = factor(
+      case_when(
+        Caso_de_teste == "Melhor caso (vetor já ordenado)"    ~ "Melhor caso",
+        Caso_de_teste == "Pior caso (vetor em ordem inversa)" ~ "Pior caso",
+        Caso_de_teste == "Caso médio (vetor aleatório)"       ~ "Caso médio",
+        TRUE ~ Caso_de_teste
+      ),
+      levels = c("Melhor caso", "Pior caso", "Caso médio")
+    ),
+    Tempo_ms = Tempo_ns * 0.000001
+  )
+
+# Função auxiliar para plotar um algoritmo específico
+plotar_algoritmo <- function(nome, cor = "steelblue") {
+  dados <- filter(tempos_longo, Algoritmo == nome)
+  ggplot(dados, aes(x = Tamanho, y = Tempo_ms, color = Caso)) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 1.5) +
+    labs(
+      title = nome,
+      x     = "Tamanho do vetor",
+      y     = "Tempo (ms)",
+      color = "Caso de teste"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "bottom")
+}
+```
+
+# Análise por algoritmo
+
+## Insertion Sort
+
+No melhor caso (vetor já ordenado), o algoritmo percorre o vetor uma única vez, resultando em crescimento linear. No pior caso (ordem inversa) e no caso médio, o comportamento é quadrático, com o pior caso apresentando tempos significativamente maiores.
+
+```cpp
+void insertion_sort(vector<int>& vetor, int end){
+    int key, holePos;
+    for (int i = 1; i < end; i++) {
+        key = vetor[i];
+        holePos = i - 1;
+        while (holePos >= 0 && vetor[holePos] > key) {
+            vetor[holePos + 1] = vetor[holePos];
+            holePos = holePos - 1;
+        }
+        vetor[holePos + 1] = key;
+    }
+}
+```
+
+```{r insertion, fig.cap="Insertion Sort", echo=FALSE, message=FALSE}
+plotar_algoritmo("Insertion sort", "tomato")
+```
+
+## Selection Sort
+
+O Selection Sort realiza sempre o mesmo número de comparações, independentemente da ordem inicial. Contudo, a instrução que determina a troca de valores no vetor (`if (vetor[i] > vetor[j])`) gera um impacto maior quando o vetor contém dados aleatórios, conforme pode ser observado na Figura 2.
+
+```cpp
+void selection_sort(vector<int>& vetor, int end){
+    for (int i = 0; i < end - 1; i++)
+        for (int j = i + 1; j < end; j++)
+            if (vetor[i] > vetor[j])
+                swap(vetor[i], vetor[j]);
+}
+```
+
+```{r selection, fig.cap="Selection Sort", echo=FALSE, message=FALSE}
+plotar_algoritmo("Selection sort", "steelblue")
+```
+
+## Bubble Sort
+
+O Bubble Sort com a otimização de parada precoce apresenta comportamento linear no melhor caso (vetor já ordenado). Nos demais casos, o crescimento é quadrático. AS "quebras" no gráfico do melhor caso podem ser consequência da execução concorrente com outros programas do sistema operacional.
+
+```cpp
+void bubble_sort(vector<int>& vetor, int end){
+    int j = end - 1;
+    bool houveTroca = false;
+    do {
+        houveTroca = false;
+        for (int i = 0; i <= j; i++) {
+            if (vetor[i + 1] < vetor[i]) {
+                swap(vetor[i], vetor[i + 1]);
+                houveTroca = true;
+            }
+        }
+        j = j - 1;
+    } while (houveTroca);
+}
+```
+
+```{r bubble, fig.cap="Bubble Sort", echo=FALSE, message=FALSE}
+plotar_algoritmo("Bubble sort", "darkorange")
+```
+
+## Quick Sort
+
+O Quick Sort apresenta comportamento `O(n log n)` em todos os casos. Nesta implementação, optamos escolher um pivô aleatoriamente. Observa-se que o pior caso teórico (vetor já ordenado) não se manifesta de forma significativa, e as três curvas ficam próximas. Os tempos obtidos no caso médio podem decorrer da excessiva troca de vamores no vetor para valores iguais.
+
+```cpp
+int particao(vector<int>& vetor, int start, int end){
+    int pivo = start + rand() % (end - start + 1);
+    int x = vetor[pivo];
+    swap(vetor[pivo], vetor[end]);
+    int i = start - 1;
+    for (int j = start; j < end; j++) {
+        if (vetor[j] <= x) {
+            i++;
+            swap(vetor[i], vetor[j]);
+        }
+    }
+    swap(vetor[i + 1], vetor[end]);
+    return i + 1;
+}
+
+void quick_sort(vector<int>& vetor, int start, int end){
+    if (start < end) {
+        int idx = particao(vetor, start, end);
+        quick_sort(vetor, start, idx - 1);
+        quick_sort(vetor, idx + 1, end);
+    }
+}
+
+void quick_sort(vector<int>& vetor, int end){
+    quick_sort(vetor, 0, end);
+}
+```
+
+```{r quick, fig.cap="Quick Sort", echo=FALSE, message=FALSE}
+plotar_algoritmo("Quick sort", "seagreen")
+```
+
+## Merge Sort
+
+O Merge Sort também apresenta comportamento `O(n log n)` em todos os casos, com curvas praticamente coincidentes. Seu tempo é ligeiramente superior ao do Quick Sort devido ao uso de memória auxiliar. De mesma forma, para o caso médio, a curva de tempo de execução é ligeiramente superior.
+
+```cpp
+void intercala(vector<int>& left, vector<int>& right, vector<int>& vec) {
+    int i = 0, j = 0, k = 0;
+    while (i < left.size() && j < right.size()) {
+        if (left[i] <= right[j]) vec[k++] = left[i++];
+        else vec[k++] = right[j++];
+    }
+    while (i < left.size()) vec[k++] = left[i++];
+    while (j < right.size()) vec[k++] = right[j++];
+}
+
+void merge_sort(vector<int>& vetor, int end) {
+    if (end < 2) return;
+    int meio = end / 2;
+    vector<int> left(meio);
+    vector<int> right(end - meio);
+    for (int i = 0; i < meio; i++) left[i] = vetor[i];
+    for (int i = meio; i < end; i++) right[i - meio] = vetor[i];
+    merge_sort(left, meio);
+    merge_sort(right, end - meio);
+    intercala(left, right, vetor);
+}
+```
+
+```{r merge, fig.cap="Merge Sort", echo=FALSE, message=FALSE}
+plotar_algoritmo("Merge sort", "purple")
+```
+
+# Conclusão
+
+## Melhor caso (vetor já ordenado)
+
+No melhor caso, Insertion Sort e Bubble Sort apresentam crescimento linear, enquanto Selection Sort, Quick Sort e Merge Sort mantêm seus comportamentos característicos. O Insertion Sort é o mais rápido nesse cenário.
+
+```{r melhor-caso, fig.cap="Comparação no melhor caso", fig.height=6, echo=FALSE}
+tempos_longo |>
+  filter(Caso == "Melhor caso") |>
+  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title    = "Comparação no melhor caso (vetor já ordenado)",
+    x        = "Tamanho do vetor",
+    y        = "Tempo (ms)",
+    color    = "Algoritmo"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right")
+```
+
+## Pior caso (vetor em ordem inversa)
+
+No pior caso, Insertion Sort, Selection Sort e Bubble Sort apresentam crescimento quadrático acentuado, com tempos muito superiores aos do Quick Sort e Merge Sort, que se mantêm em `O(n log n)`.
+
+```{r pior-caso, fig.cap="Comparação no pior caso", fig.height=6, echo=FALSE}
+tempos_longo |>
+  filter(Caso == "Pior caso") |>
+  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title    = "Comparação no pior caso (vetor em ordem inversa)",
+    x        = "Tamanho do vetor",
+    y        = "Tempo (ms)",
+    color    = "Algoritmo"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right")
+```
+
+## Caso médio (vetor aleatório)
+
+No caso médio, o comportamento é semelhante ao pior caso para os algoritmos quadráticos, mas com tempos ligeiramente menores. Quick Sort e Merge Sort continuam sendo as melhores escolhas para vetores grandes.
+
+```{r caso-medio, fig.cap="Comparação no caso médio", fig.height=6, echo=FALSE}
+tempos_longo |>
+  filter(Caso == "Caso médio") |>
+  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title    = "Comparação no caso médio (vetor aleatório)",
+    x        = "Tamanho do vetor",
+    y        = "Tempo (ms)",
+    color    = "Algoritmo"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right")
+```
+
+
+```{r onlogn, fig.cap="Comparação entre os algoritmos O(n log n)", fig.height=6, echo=FALSE}
+tempos_longo |>
+  filter(Algoritmo %in% c("Quick sort", "Merge sort")) |>
+  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo,
+             linetype = Caso)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title    = "Algoritmos O(n log n): Quick Sort e Merge Sort",
+    subtitle = "Melhor, pior e caso médio",
+    x        = "Tamanho do vetor",
+    y        = "Tempo (ms)",
+    color    = "Algoritmo",
+    linetype = "Caso de teste"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right")
+```
+
+
+```{r demais, fig.cap="Comparação entre os demais algoritmos", fig.height=6, echo=FALSE}
+tempos_longo |>
+  filter(Algoritmo %in% c("Insertion sort", "Selection sort", "Bubble sort")) |>
+  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo,
+             linetype = Caso)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title    = "Demais algoritmos: Insertion, Selection e Bubble Sort",
+    subtitle = "Melhor, pior e caso médio",
+    x        = "Tamanho do vetor",
+    y        = "Tempo (ms)",
+    color    = "Algoritmo",
+    linetype = "Caso de teste"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "right")
+```
+
+## Considerações finais
+
+A medição com a biblioteca `chrono` não é ideal, uma vez que o sistema operacional pode flutuar a execução do programa. Isso foi observado em experimento anterior, com algoritmos de busca, e ao executar este programa diversas vezes, obtendo gráficos ligeiramente distintos.
+
+Concluindo a análise, observamos que, para vetores grandes e desordenados, o **Quick Sort** e o **Merge Sort** são as melhores escolhas, com complexidade `O(n log n)` em todos os casos. O **Insertion Sort** se destaca no melhor caso (vetor já ordenado) com comportamento linear, sendo útil quando os dados estão quase ordenados. Já o **Selection Sort** e o **Bubble Sort**, embora sejam de simples implementação, são ineficientes para vetores grandes, apresentando crescimento quadrático mesmo no melhor caso (no caso do Selection Sort).
