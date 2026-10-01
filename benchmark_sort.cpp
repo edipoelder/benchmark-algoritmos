@@ -6,11 +6,11 @@
 using namespace std;
 
 // Tamanho máximo do vetor
-const int VECTOR_SIZE = 15000;
+const int VECTOR_SIZE = 10000;
 // Intervalo entre cada teste
-const int STEP = 1000;
+const int STEP = 500;
 // Quantidade de testes por função
-const int TRIALS = 3;
+const int TRIALS = 10;
 
 // define o algoritmo ordenaçãp (vetor, início, fim)
 typedef void (*algoritmo_ordenacao)(vector<int>& vetor, int end);
@@ -77,7 +77,9 @@ void bubble_sort(vector<int>& vetor, int end){
 // 4. Quick sort.
 int particao(vector<int>& vetor, int start, int end){
 	//	seleção pivô de forma aleatória.
-    int pivo = start + rand() % (end - start + 1); // aleatório entre 0 e end
+//    int pivo = start + rand() % (end - start + 1); // aleatório entre 0 e end
+	int pivo = start + (end - start) / 2; // pivô sempre no meio
+//	int pivo = end; // pivô sempre no final
 	int x = vetor[pivo];
 	// não estava no algoritmo do slide.
 	// sem isso, não estava ordenando corretamente
@@ -231,7 +233,7 @@ int main(int argc, char **argv) {
 	// testa os casos
 	imprime_cabecalho();
 	testa_caso("Melhor caso (vetor já ordenado)",    melhor_caso,    funcoes);
-	testa_caso("Pior caso (vetor em ordem inversa)", pior_caso,      funcoes);
 	testa_caso("Caso médio (vetor aleatório)",       caso_aleatorio, funcoes);
+	testa_caso("Pior caso (vetor em ordem inversa)", pior_caso,      funcoes);
 	return 0;
 }

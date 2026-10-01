@@ -8,6 +8,9 @@ output:
   bookdown::pdf_document2:
     number_sections: true
     toc: false
+header-includes:
+  - \usepackage{float}
+  - \usepackage{placeins}
 csl: "abnt.csl"
 editor_options: 
   chunk_output_type: console
@@ -20,8 +23,10 @@ knitr::opts_chunk$set(
   echo    = TRUE,
   warning = FALSE,
   message = FALSE,
-  fig.align = "center"
+  fig.align = "center",
+  fig.pos   = "H"
 )
+
 
 library(ggplot2)
 library(tidyr)
@@ -46,7 +51,7 @@ A seguir, resumiremos as características de cada algoritmo testado:
 
 **Bubble Sort.** Compara pares adjacentes e troca-os se estiverem fora de ordem, repetindo o processo até que nenhuma troca seja necessária. Possui uma otimização que interrompe a execução precocemente se o vetor já estiver ordenado.
 
-**Quick Sort.** Escolhe um pivô (aleatório, neste experimento), particiona o vetor em torno dele e ordena recursivamente as subpartes. É um dos algoritmos mais eficientes na prática, com complexidade média `O(n log n)`.
+**Quick Sort.** Escolhe um pivô (sempre no meio do range, neste experimento), particiona o vetor em torno dele e ordena recursivamente as subpartes. É um dos algoritmos mais eficientes na prática, com complexidade média `O(n log n)`.
 
 **Merge Sort.** Divide o vetor recursivamente pela metade, ordena cada metade e depois as intercala. Garante complexidade `O(n log n)` em todos os casos, mas utiliza memória auxiliar.
 
@@ -79,17 +84,19 @@ kable(
 O programa foi executado num processador Apple M4, compilado com Apple clang versão 21.0.0 (clang-2100.3.34.2) e os seguintes parâmetros:
 
 ```bash
-g++ -std=c++17 -O2 benchmark_sort.cpp -o bench_sort
+g++ -std=c++23 -march=native -mtune=native -fno-stack-protector src/benchmark_sort.cpp -o bench_sort
 ```
+
+O parâmetro `-march=native -mtune=native` diz ao compilador para usar instruções específicas da sua CPU e `-fno-stack-protector` remove canários de pilha (reduz overhead por chamada).
 
 Em todos os testes:
 
-- Foram criados três vetores com tamanho `VECTOR_SIZE` (15000), utilizados de forma padrão nos testes, sendo preenchidos de formas distintas:
+- Foram criados três vetores com tamanho `VECTOR_SIZE` (10000), utilizados de forma padrão nos testes, sendo preenchidos de formas distintas:
   - **Melhor caso:** vetor já ordenado (`melhor_caso[i] = i`).
   - **Pior caso:** vetor em ordem inversa (`pior_caso[VECTOR_SIZE - i - 1] = i`).
   - **Caso médio:** vetor aleatório (`rand() % VECTOR_SIZE`).
-- Os tamanhos de vetor testados variam de `1000` a `15000`, em passos de `1000`.
-- Cada medição foi repetida 3 vezes (`TRIALS`), e calculamos a média dos tempos obtidos.
+- Os tamanhos de vetor testados variam de `500` a `10000`, em passos de `500`.
+- Cada medição foi repetida 10 vezes (`TRIALS`), e calculamos a média dos tempos obtidos.
 - Para evitar que o algoritmo receba um vetor já ordenado nos cenários de testes do pior caso e caso médio, a cada nova execução do algoritmo foi criada uma cópia do vetor padrão.
 
 # A função de benchmark
@@ -225,11 +232,15 @@ plotar_algoritmo("Bubble sort", "darkorange")
 
 ## Quick Sort
 
-O Quick Sort apresenta comportamento `O(n log n)` em todos os casos. Nesta implementação, optamos escolher um pivô aleatoriamente. Observa-se que o pior caso teórico (vetor já ordenado) não se manifesta de forma significativa, e as três curvas ficam próximas. Os tempos obtidos no caso médio podem decorrer da excessiva troca de vamores no vetor para valores iguais.
+A escolha do pivô pode interferir no desempenho do algoritmo. Geralmente, é recomendado a escolha de um pivô aleatório. Neste estudo, optamos em escolher o pivô sempre no meio do range para manter uma constância maior entre a execucão com vetores de tamanhos diferentes.
+
+O Quick Sort apresenta comportamento `O(n log n)` em todos os casos. Observa-se que o pior caso teórico (vetor já ordenado) não se manifesta de forma significativa e a curva fica próxima do melhor caso. Já para o caso aleatório, pela opção de escolha do pivô sempre no meio, a curva foi acima do pior caso. Um fator que pode estar causando esta diferença é a predição do pipeline da CPU (neste caso, um Apple M4).
 
 ```cpp
 int particao(vector<int>& vetor, int start, int end){
-    int pivo = start + rand() % (end - start + 1);
+    // int pivo = start + rand() % (end - start + 1); // aleatório entre 0 e end
+	  //int pivo = end; // pivô sempre no final
+	  int pivo = start + (end - start) / 2; // pivô sempre no meio
     int x = vetor[pivo];
     swap(vetor[pivo], vetor[end]);
     int i = start - 1;
@@ -371,26 +382,48 @@ tempos_longo |>
 ```
 
 
-```{r demais, fig.cap="Comparação entre os demais algoritmos", fig.height=6, echo=FALSE}
-tempos_longo |>
-  filter(Algoritmo %in% c("Insertion sort", "Selection sort", "Bubble sort")) |>
-  ggplot(aes(x = Tamanho, y = Tempo_ms, color = Algoritmo,
-             linetype = Caso)) +
-  geom_line(linewidth = 1) +
-  labs(
-    title    = "Demais algoritmos: Insertion, Selection e Bubble Sort",
-    subtitle = "Melhor, pior e caso médio",
-    x        = "Tamanho do vetor",
-    y        = "Tempo (ms)",
-    color    = "Algoritmo",
-    linetype = "Caso de teste"
-  ) +
-  theme_minimal(base_size = 12) +
-  theme(legend.position = "right")
-```
-
 ## Considerações finais
 
-A medição com a biblioteca `chrono` não é ideal, uma vez que o sistema operacional pode flutuar a execução do programa. Isso foi observado em experimento anterior, com algoritmos de busca, e ao executar este programa diversas vezes, obtendo gráficos ligeiramente distintos.
+Observamos que, empiricamente, o algoritmo **Quick sort** tem comportamento distinto do comportamento esperado na teoria, com o caso médio ficando acima do pior caso (Figura \@ref(fig:quick)). Supomos que deve-se aos parâmetros utilizados com o compilador (otimização, instruções específicas da CPU, etc.), bem como a predição de instruções do pipeline e cache de instruções pela CPU. CAberia 
 
-Concluindo a análise, observamos que, para vetores grandes e desordenados, o **Quick Sort** e o **Merge Sort** são as melhores escolhas, com complexidade `O(n log n)` em todos os casos. O **Insertion Sort** se destaca no melhor caso (vetor já ordenado) com comportamento linear, sendo útil quando os dados estão quase ordenados. Já o **Selection Sort** e o **Bubble Sort**, embora sejam de simples implementação, são ineficientes para vetores grandes, apresentando crescimento quadrático mesmo no melhor caso (no caso do Selection Sort).
+De modo geral, observamos que, para vetores grandes e desordenados, o **Quick Sort** e o **Merge Sort** são as melhores escolhas, com complexidade `O(n log n)` em todos os casos. Na prática, o **Quick sort** é mais rápido que o **Merge sort**  (Figura \@ref(fig:onlogn)), além da vantagem de utilizar menos memória.
+
+O **Insertion Sort** se destaca no melhor caso (vetor já ordenado) com comportamento linear, sendo útil quando os dados estão quase ordenados. Já o **Selection Sort** e o **Bubble Sort**, embora sejam de simples implementação, são ineficientes para vetores grandes, apresentando crescimento quadrático mesmo no melhor caso (no caso do Selection Sort).
+
+Como trabalho futuro, sugerimos um estudo do algoritmo **Quick Sort** com variação do método de escolha do pivô (no fim, no meio, aleatório, etc) bem como quais parâmetros de compilação são os mais indicados para programas que utilizem este algoritmo.
+
+```{=latex}
+\FloatBarrier
+\clearpage
+```
+
+# (APPENDIX) Apêndice {-}
+
+# Tabela de tempos {#apendice-tabela}
+
+```{r tabela-completa, echo=FALSE, message=FALSE, warning=FALSE}
+# Deriva tempos_tabela a partir do tempos_longo já existente,
+# apenas reorganizando as colunas para o formato de tabela.
+tempos_tabela <- tempos_longo |>
+  select(Tamanho, Caso, Algoritmo, Tempo_ms) |>
+  mutate(
+    Algoritmo = factor(
+      Algoritmo,
+      levels = c("Insertion sort", "Selection sort", "Bubble sort",
+                 "Quick sort", "Merge sort"),
+      labels = c("Insert.", "Select.", "Bubble", "Quick", "Merge")
+    )
+  ) |>
+  pivot_wider(names_from = Algoritmo, values_from = Tempo_ms) |>
+  arrange(Caso, Tamanho)
+
+kable(
+  tempos_tabela,
+  caption   = "Tempos médios de execução (em milissegundos) por algoritmo, caso e tamanho",
+  col.names = c("Tam.", "Caso", "Insert", "Select", "Bubble", "Quick", "Merge"),
+  align     = c("r", "l", rep("r", 5)),
+  booktabs  = TRUE,
+  linesep   = "",
+  longtable = TRUE
+) 
+```
