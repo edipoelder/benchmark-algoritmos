@@ -77,9 +77,9 @@ void bubble_sort(vector<int>& vetor, int end){
 // 4. Quick sort.
 int particao(vector<int>& vetor, int start, int end){
 	//	seleção pivô de forma aleatória.
-//    int pivo = start + rand() % (end - start + 1); // aleatório entre 0 e end
+    // int pivo = start + rand() % (end - start + 1); // aleatório entre 0 e end
+	//int pivo = end; // pivô sempre no final
 	int pivo = start + (end - start) / 2; // pivô sempre no meio
-//	int pivo = end; // pivô sempre no final
 	int x = vetor[pivo];
 	// não estava no algoritmo do slide.
 	// sem isso, não estava ordenando corretamente
@@ -109,25 +109,25 @@ void quick_sort(vector<int>& vetor, int end){
 
 // 5. Merge sort.
 // método para fazer o join dos vetores ordenados
-void intercala(vector<int>& left, vector<int>& right, vector<int>& vec) {
+void intercala(vector<int>& left, vector<int>& right, vector<int>& vetor) {
     int i = 0; // índice para left
     int j = 0; // índice para right
     int k = 0; // índice para o vetor resultado
 
-    // Compara elementos e insere o menor em vec
+    // Compara elementos e insere o menor em vetor
     while (i < left.size() && j < right.size()) {
         if (left[i] <= right[j]) {
-            vec[k++] = left[i++];
+            vetor[k++] = left[i++];
         } else {
-            vec[k++] = right[j++];
+            vetor[k++] = right[j++];
         }
     }
     // Copia os elementos restantes
     while (i < left.size()) {
-        vec[k++] = left[i++];
+        vetor[k++] = left[i++];
     }
     while (j < right.size()) {
-        vec[k++] = right[j++];
+        vetor[k++] = right[j++];
     }
 }
 

@@ -81,10 +81,10 @@ kable(
 
 ## Cenário do experimento
 
-O programa foi executado num processador Apple M4, compilado com Apple clang versão 21.0.0 (clang-2100.3.34.2) e os seguintes parâmetros:
+O programa foi executado num processador **MacBook M4** rodando **MacOS 27**, compilado com Apple clang versão 21.0.0 (clang-2100.3.34.2) e os seguintes parâmetros:
 
 ```bash
-g++ -std=c++23 -march=native -mtune=native -fno-stack-protector src/benchmark_sort.cpp -o bench_sort
+g++ -std=c++23 -march=native -mtune=native -fno-stack-protector benchmark_sort.cpp -o bench_sort
 ```
 
 O parâmetro `-march=native -mtune=native` diz ao compilador para usar instruções específicas da sua CPU e `-fno-stack-protector` remove canários de pilha (reduz overhead por chamada).
@@ -122,7 +122,7 @@ A implementação dos algoritmos foi feita:
 O `main` cria os três vetores de teste e, para cada função registrada na tabela de `funcoes`, computa a média de tempo de 3 repetições para diferentes tamanhos, gerando um arquivo CSV diretamente utilizável pelo R. Optamos por fazer uma média de 3 execuções uma vez que os algoritmos Bubble Sort e Selection sort levam de 25 a quase 200 segundos de execução.
 
 ```{r load, echo=FALSE}
-tempos <- read.csv("tempos_sort.csv", check.names = FALSE)
+tempos <- read.csv("tempos_sort_m4.csv", check.names = FALSE)
 
 # Converte colunas Tamanho_X em linhas, renomeia os casos
 # e converte o tempo de nanossegundos para milissegundos.
@@ -172,13 +172,16 @@ No melhor caso (vetor já ordenado), o algoritmo percorre o vetor uma única vez
 ```cpp
 void insertion_sort(vector<int>& vetor, int end){
     int key, holePos;
+    // percorrer parte não-ordenada (começa em 1)
     for (int i = 1; i < end; i++) {
         key = vetor[i];
         holePos = i - 1;
+        // percorrer (reverso) a parte ordenada até o início ou achar a posição
         while (holePos >= 0 && vetor[holePos] > key) {
             vetor[holePos + 1] = vetor[holePos];
             holePos = holePos - 1;
         }
+        // inserir item na posição criada
         vetor[holePos + 1] = key;
     }
 }
@@ -276,25 +279,46 @@ plotar_algoritmo("Quick sort", "seagreen")
 O Merge Sort também apresenta comportamento `O(n log n)` em todos os casos, com curvas praticamente coincidentes. Seu tempo é ligeiramente superior ao do Quick Sort devido ao uso de memória auxiliar. De mesma forma, para o caso médio, a curva de tempo de execução é ligeiramente superior.
 
 ```cpp
-void intercala(vector<int>& left, vector<int>& right, vector<int>& vec) {
-    int i = 0, j = 0, k = 0;
+// método para fazer o join dos vetores ordenados
+void intercala(vector<int>& left, vector<int>& right, vector<int>& vetor) {
+    int i = 0; // índice para left
+    int j = 0; // índice para right
+    int k = 0; // índice para o vetor resultado
+    // Compara elementos e insere o menor em vetor
     while (i < left.size() && j < right.size()) {
-        if (left[i] <= right[j]) vec[k++] = left[i++];
-        else vec[k++] = right[j++];
+        if (left[i] <= right[j]) {
+            vetor[k++] = left[i++];
+        } else {
+            vetor[k++] = right[j++];
+        }
     }
-    while (i < left.size()) vec[k++] = left[i++];
-    while (j < right.size()) vec[k++] = right[j++];
+    // Copia os elementos restantes
+    while (i < left.size()) {
+        vetor[k++] = left[i++];
+    }
+    while (j < right.size()) {
+        vetor[k++] = right[j++];
+    }
 }
 
+// rotina recursiva do merge
 void merge_sort(vector<int>& vetor, int end) {
-    if (end < 2) return;
+	if (end < 2) return;
     int meio = end / 2;
+    // vetores esquerda (left) e direita (right)
     vector<int> left(meio);
     vector<int> right(end - meio);
-    for (int i = 0; i < meio; i++) left[i] = vetor[i];
-    for (int i = meio; i < end; i++) right[i - meio] = vetor[i];
+    // Copia os elementos para left e right
+    for (int i = 0; i < meio; i++) {
+        left[i] = vetor[i];
+    }
+    for (int i = meio; i < end; i++) {
+        right[i - meio] = vetor[i];
+    }
+    // Chamadas recursivas
     merge_sort(left, meio);
     merge_sort(right, end - meio);
+    // Intercala de volta ao vetor
     intercala(left, right, vetor);
 }
 ```
